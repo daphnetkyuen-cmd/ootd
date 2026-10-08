@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OOTD Lucky Draw - Random Outfit Generator</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Space+Grotesk:wght@700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                        display: ['Space Grotesk', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            pink: '#FF6B8B',
+                            purple: '#8A2BE2',
+                            yellow: '#FFD166',
+                            mint: '#06D6A0',
+                            dark: '#1A1A2E',
+                            card: '#242442'
+                        }
+                    },
+                    animation: {
+                        'pulse-glow': 'pulseGlow 2s infinite',
+                        'bounce-subtle': 'bounceSubtle 1s infinite',
+                    },
+                    keyframes: {
+                        pulseGlow: {
+                            '0%, 100%': { boxShadow: '0 0 15px rgba(255, 107, 139, 0.5)' },
+                            '50%': { boxShadow: '0 0 30px rgba(138, 43, 226, 0.8)' },
+                        },
+                        bounceSubtle: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-5px)' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        /* Custom Slot Machine Reel Animations */
+        .reel-container {
+            position: relative;
+            height: 120px;
+            overflow: hidden;
+            border-radius: 1rem;
+            mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
+            -webkit-mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
+        }
+        .reel-strip {
+            transition: transform 0.1s ease-out;
+            will-change: transform;
+        }
+        .blur-motion {
+            filter: blur(2px);
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.4);
+        }
+    </style>
+</head>
+<body class="bg-brand-dark text-white font-sans min-h-screen flex flex-col justify-between selection:bg-brand-pink selection:text-white">
+
+    <!-- Navbar -->
+    <header class="border-b border-white/10 backdrop-blur-md bg-brand-dark/80 sticky top-0 z-40">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-pink to-brand-purple flex items-center justify-center text-xl shadow-lg">
+                    ✨
+                </div>
+                <div>
+                    <h1 class="font-display font-bold text-xl md:text-2xl tracking-tight bg-gradient-to-r from-brand-pink via-brand-yellow to-brand-mint bg-clip-text text-transparent">
+                        OOTD Lucky Draw
+                    </h1>
+                    <p class="text-xs text-gray-400 hidden sm:block">Random Outfit Generator & Styling Machine</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-3">
+                <button id="soundToggleBtn" onclick="toggleSound()" class="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 hover:text-white transition" title="Toggle Sound">
+                    <i id="soundIcon" class="fas fa-volume-up"></i>
+                </button>
+                <button onclick="openWardrobeModal()" class="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 text-sm font-semibold flex items-center gap-2 transition active:scale-95">
+                    <i class="fas fa-shirt"></i>
+                    <span>My Closet</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 py-8 flex-grow w-full flex flex-col items-center justify-center">
+        
+        <!-- Instruction Banner -->
+        <div class="text-center mb-8 max-w-xl">
+            <h2 class="text-2xl md:text-3xl font-extrabold mb-2 font-display">What should you wear today?</h2>
+            <p class="text-gray-400 text-sm md:text-base">Spin the lucky reels to generate your random daily aesthetic outfit!</p>
+        </div>
+
+        <!-- Slot Machine Wrapper -->
+        <div class="w-full max-w-4xl bg-brand-card/90 border border-white/10 rounded-3xl p-4 md:p-8 shadow-2xl relative overflow-hidden backdrop-blur-md">
+            <!-- Decorative Lights/Glows -->
+            <div class="absolute -top-24 -left-24 w-48 h-48 bg-brand-pink/20 rounded-full blur-3xl pointer-events-none"></div>
+            <div class="absolute -bottom-24 -right-24 w-48 h-48 bg-brand-purple/20 rounded-full blur-3xl pointer-events-none"></div>
+
+            <!-- Reels Grid -->
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4 relative z-10 mb-8" id="reelsGrid">
+                <!-- Dynamic Reels will be rendered here -->
+            </div>
+
+            <!-- Action Controls -->
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-4 relative z-10">
+                <button id="spinBtn" onclick="spinSlotMachine()" class="w-full sm:w-auto px-10 py-4 bg-gradient-to-r from-brand-pink via-brand-purple to-brand-mint text-white font-extrabold text-lg rounded-2xl shadow-xl hover:opacity-95 transform hover:-translate-y-0.5 active:translate-y-0.5 transition-all duration-150 flex items-center justify-center gap-3 animate-pulse-glow">
+                    <i class="fas fa-dice text-2xl"></i>
+                    <span>SPIN OOTD!</span>
+                </button>
+                <button id="lockResetBtn" onclick="unlockAll()" class="w-full sm:w-auto px-6 py-4 bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 hover:text-white font-semibold text-sm rounded-2xl transition flex items-center justify-center gap-2">
+                    <i class="fas fa-lock-open"></i>
+                    <span>Unlock All</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- OOTD Result Showcase Card -->
+        <section id="resultCard" class="w-full max-w-2xl mt-10 hidden transform transition-all duration-500 scale-95 opacity-0">
+            <div class="bg-gradient-to-b from-brand-card to-brand-dark border-2 border-brand-pink/40 rounded-3xl p-6 md:p-8 shadow-2xl relative overflow-hidden">
+                
+                <!-- Card Header -->
+                <div class="flex justify-between items-start mb-6 border-b border-white/10 pb-4">
+                    <div>
+                        <span class="inline-block px-3 py-1 bg-brand-pink/20 text-brand-pink text-xs font-bold rounded-full uppercase tracking-wider mb-2">
+                            Today's Match
+                        </span>
+                        <h3 class="text-2xl font-extrabold font-display" id="outfitStyleTitle">Chic Casual Look</h3>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-xs text-gray-400 block" id="currentDateText">Today</span>
+                        <span class="text-xl">✨🔥</span>
+                    </div>
+                </div>
+
+                <!-- Outfit Grid Breakdown -->
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6" id="resultItemsGrid">
+                    <!-- Items inserted by JS -->
+                </div>
+
+                <!-- Color Palette Showcase -->
+                <div class="bg-white/5 rounded-2xl p-4 mb-6 flex items-center justify-between border border-white/5">
+                    <span class="text-sm font-semibold text-gray-300">Color Aesthetic:</span>
+                    <div class="flex items-center gap-2" id="palettePreview">
+                        <!-- Palette elements -->
+                    </div>
+                </div>
+
+                <!-- Share & Save Buttons -->
+                <div class="flex flex-wrap gap-3 pt-2">
+                    <button onclick="copyOutfitSummary()" class="flex-1 min-w-[140px] py-3 px-4 bg-white/10 hover:bg-white/20 border border-white/10 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition active:scale-95">
+                        <i class="fas fa-copy"></i>
+                        <span>Copy Summary</span>
+                    </button>
+                    <button onclick="spinSlotMachine()" class="flex-1 min-w-[140px] py-3 px-4 bg-brand-pink/20 hover:bg-brand-pink/30 text-brand-pink border border-brand-pink/30 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition active:scale-95">
+                        <i class="fas fa-redo"></i>
+                        <span>Re-Spin</span>
+                    </button>
+                </div>
+
+                <!-- Toast Notification inside Card -->
+                <div id="toast" class="absolute inset-x-0 bottom-4 mx-auto w-max px-4 py-2 bg-brand-mint text-brand-dark text-xs font-extrabold rounded-full shadow-lg opacity-0 transition-opacity duration-300 pointer-events-none">
+                    Copied to clipboard! 📋
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Customization Modal (My Closet) -->
+    <div id="wardrobeModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-brand-card border border-white/10 w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+            
+            <!-- Modal Header -->
+            <div class="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-brand-purple/20 text-brand-purple rounded-xl">
+                        <i class="fas fa-boxes-packing text-xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold font-display">Manage Closet Items</h3>
+                        <p class="text-xs text-gray-400">Add or remove items for each category</p>
+                    </div>
+                </div>
+                <button onclick="closeWardrobeModal()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-gray-400 hover:text-white transition">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Modal Body (Category Tabs & List) -->
+            <div class="p-6 overflow-y-auto flex-grow space-y-6">
+                <!-- Category Tabs -->
+                <div class="flex gap-2 overflow-x-auto pb-2 scrollbar-none" id="categoryTabs">
+                    <!-- Dynamic tabs -->
+                </div>
+
+                <!-- Add New Item Input Box -->
+                <div class="bg-white/5 p-4 rounded-2xl border border-white/10 space-y-3">
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-gray-400">Add Custom Item</h4>
+                    <div class="flex gap-2">
+                        <input type="text" id="newItemEmoji" placeholder="Emoji (e.g. 🧥)" class="w-20 px-3 py-2 bg-black/30 border border-white/10 rounded-xl text-center text-lg focus:outline-none focus:border-brand-pink">
+                        <input type="text" id="newItemName" placeholder="Item Name (e.g. Vintage Denim Jacket)" class="flex-grow px-4 py-2 bg-black/30 border border-white/10 rounded-xl text-sm focus:outline-none focus:border-brand-pink">
+                        <button onclick="addNewCustomItem()" class="px-5 py-2 bg-brand-pink hover:bg-brand-pink/90 text-white font-bold rounded-xl text-sm transition active:scale-95">
+                            Add
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Current Items List -->
+                <div>
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Current Wardrobe Items</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="itemList">
+                        <!-- Dynamic item cards -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="p-4 border-t border-white/10 bg-white/5 flex justify-between items-center text-xs text-gray-400">
+                <button onclick="resetDefaultWardrobe()" class="text-gray-400 hover:text-brand-pink transition underline">Reset Defaults</button>
+                <button onclick="closeWardrobeModal()" class="px-6 py-2 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-xl transition">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="border-t border-white/5 py-6 text-center text-xs text-gray-500">
+        <p>✨ Stay Stylish Everyday • Outfit Lucky Draw © 2026</p>
+    </footer>
+
+    <script>
+        // Default Wardrobe Data
+        const DEFAULT_CATEGORIES = [
+            {
+                id: 'tops',
+                name: 'Tops',
+                icon: 'fa-shirt',
+                items: [
+                    { name: 'Oversized Tee', icon: '👕', tag: 'Casual' },
+                    { name: 'Silk Blouse', icon: '👔', tag: 'Elevated' },
+                    { name: 'Cropped Hoodie', icon: '🧥', tag: 'Cozy' },
+                    { name: 'Knit Sweater', icon: '🧶', tag: 'Warm' },
+                    { name: 'Graphic Tank', icon: '🎽', tag: 'Edgy' },
+                    { name: 'Linen Button-down', icon: '👔', tag: 'Fresh' }
+                ]
+            },
+            {
+                id: 'bottoms',
+                name: 'Bottoms',
+                icon: 'fa-user-nurse', // trousers placeholder
+                items: [
+                    { name: 'Baggy Jeans', icon: '👖', tag: 'Streetwear' },
+                    { name: 'Pleated Skirt', icon: '👗', tag: 'Preppy' },
+                    { name: 'Tailored Trousers', icon: '👖', tag: 'Chic' },
+                    { name: 'Cargo Pants', icon: '👖', tag: 'Utility' },
+                    { name: 'Biker Shorts', icon: '🩳', tag: 'Sporty' },
+                    { name: 'A-Line Midi Skirt', icon: '👗', tag: 'Elegant' }
+                ]
+            },
+            {
+                id: 'outerwear',
+                name: 'Layers',
+                icon: 'fa-vest',
+                items: [
+                    { name: 'Denim Jacket', icon: '🧥', tag: 'Classic' },
+                    { name: 'Oversized Blazer', icon: '🥼', tag: 'Smart' },
+                    { name: 'Leather Trench', icon: '🧥', tag: 'Edgy' },
+                    { name: 'Cozy Cardigan', icon: '🧶', tag: 'Soft' },
+                    { name: 'Puffer Vest', icon: '🦺', tag: 'Sporty' },
+                    { name: 'None / Minimal', icon: '✨', tag: 'Simple' }
+                ]
+            },
+            {
+                id: 'shoes',
+                name: 'Shoes',
+                icon: 'fa-shoe-prints',
+                items: [
+                    { name: 'Chunky Sneakers', icon: '👟', tag: 'Casual' },
+                    { name: 'Loafers', icon: '👞', tag: 'Smart' },
+                    { name: 'Ankle Boots', icon: '🥾', tag: 'Chic' },
+                    { name: 'Strappy Heels', icon: '👠', tag: 'Formal' },
+                    { name: 'Retro Runners', icon: '👟', tag: 'Retro' },
+                    { name: 'Comfy Slides', icon: '🩴', tag: 'Chill' }
+                ]
+            },
+            {
+                id: 'accessories',
+                name: 'Accs',
+                icon: 'fa-glasses',
+                items: [
+                    { name: 'Statement Bag', icon: '👜', tag: 'Pop' },
+                    { name: 'Baseball Cap', icon: '🧢', tag: 'Sporty' },
+                    { name: 'Gold Layered Chains', icon: '💍', tag: 'Shine' },
+                    { name: 'Retro Sunglasses', icon: '🕶️', tag: 'Cool' },
+                    { name: 'Beanie', icon: '🧢', tag: 'Cozy' },
+                    { name: 'Silk Scarf', icon: '🧣', tag: 'Graceful' }
+                ]
+            },
+            {
+                id: 'palette',
+                name: 'Color Vibe',
+                icon: 'fa-palette',
+                items: [
+                    { name: 'Monochrome Black', icon: '🖤', color: '#18181b', secondary: '#3f3f46' },
+                    { name: 'Pastel Dream', icon: '🌸', color: '#fbcfe8', secondary: '#bae6fd' },
+                    { name: 'Earth Tone & Sage', icon: '🌿', color: '#a3e635', secondary: '#78350f' },
+                    { name: 'Warm Warm Neutral', icon: '☕', color: '#d97706', secondary: '#fef3c7' },
+                    { name: 'Electric Pop', icon: '⚡', color: '#ec4899', secondary: '#8b5cf6' },
+                    { name: 'Ocean Denim Blue', icon: '🌊', color: '#3b82f6', secondary: '#93c5fd' }
+                ]
+            }
+        ];
+
+        // State Management
+        let wardrobe = JSON.parse(localStorage.getItem('ootd_wardrobe')) || DEFAULT_CATEGORIES;
+        let lockedCategories = {};
+        let activeTabId = 'tops';
+        let isSpinning = false;
+        let soundEnabled = true;
+        let audioCtx = null;
+
+        // Initialize Audio Synthesizer (Web Audio API - No external files)
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playClickSound() {
+            if (!soundEnabled) return;
+            initAudio();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(800, audioCtx.currentTime + 0.05);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.05);
+        }
+
+        function playReelTickSound() {
+            if (!soundEnabled) return;
+            initAudio();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(150 + Math.random() * 100, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.03);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.03);
+        }
+
+        function playWinFanfare() {
+            if (!soundEnabled) return;
+            initAudio();
+            const notes = [261.63, 329.63, 392.00, 523.25]; // C, E, G, C
+            notes.forEach((freq, idx) => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime + idx * 0.08);
+                gain.gain.setValueAtTime(0.15, audioCtx.currentTime + idx * 0.08);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + idx * 0.08 + 0.3);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(audioCtx.currentTime + idx * 0.08);
+                osc.stop(audioCtx.currentTime + idx * 0.08 + 0.3);
+            });
+        }
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            const icon = document.getElementById('soundIcon');
+            icon.className = soundEnabled ? 'fas fa-volume-up' : 'fas fa-volume-mute text-red-400';
+        }
+
+        function renderReels() {
+            const reelsGrid = document.getElementById('reelsGrid');
+            reelsGrid.innerHTML = '';
+
+            wardrobe.forEach((cat) => {
+                const isLocked = !!lockedCategories[cat.id];
+                const reelCard = document.createElement('div');
+                reelCard.className = `bg-black/40 border ${isLocked ? 'border-brand-pink/80 shadow-md shadow-brand-pink/20' : 'border-white/10'} rounded-2xl p-3 flex flex-col items-center relative group transition-all`;
+
+                reelCard.innerHTML = `
+                    <!-- Header with Lock -->
+                    <div class="w-full flex justify-between items-center mb-2 px-1">
+                        <span class="text-[11px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                            <i class="fas ${cat.icon} text-brand-pink"></i>
+                            ${cat.name}
+                        </span>
+                        <button onclick="toggleLock('${cat.id}')" class="text-xs ${isLocked ? 'text-brand-pink' : 'text-gray-500 hover:text-gray-300'} transition" title="${isLocked ? 'Unlock Reel' : 'Lock Reel'}">
+                            <i class="fas ${isLocked ? 'fa-lock' : 'fa-lock-open'}"></i>
+                        </button>
+                    </div>
+
+                    <!-- Slot Reel Machine Container -->
+                    <div class="reel-container w-full bg-white/5 border border-white/5 flex items-center justify-center">
+                        <div id="reel-strip-${cat.id}" class="reel-strip w-full flex flex-col items-center">
+                            <!-- Items populated dynamically -->
+                        </div>
+                    </div>
+                `;
+
+                reelsGrid.appendChild(reelCard);
+                populateReelStrip(cat.id, cat.items[0]);
+            });
+        }
+
+        function populateReelStrip(catId, activeItem) {
+            const strip = document.getElementById(`reel-strip-${catId}`);
+            if (!strip) return;
+
+            strip.innerHTML = `
+                <div class="h-[120px] flex flex-col items-center justify-center text-center p-2">
+                    <span class="text-3xl mb-1">${activeItem.icon}</span>
+                    <span class="text-xs font-bold text-gray-200 line-clamp-1">${activeItem.name}</span>
+                    ${activeItem.tag ? `<span class="text-[10px] text-brand-pink bg-brand-pink/10 px-2 py-0.5 rounded-full mt-1">${activeItem.tag}</span>` : ''}
+                </div>
+            `;
+        }
+
+        function toggleLock(catId) {
+            playClickSound();
+            lockedCategories[catId] = !lockedCategories[catId];
+            renderReels();
+        }
+
+        function unlockAll() {
+            playClickSound();
+            lockedCategories = {};
+            renderReels();
+        }
+
+        function spinSlotMachine() {
+            if (isSpinning) return;
+            isSpinning = true;
+            playClickSound();
+
+            const spinBtn = document.getElementById('spinBtn');
+            spinBtn.disabled = true;
+            spinBtn.classList.add('opacity-50', 'cursor-not-allowed');
+
+            // Hide previous results
+            const resultCard = document.getElementById('resultCard');
+            resultCard.classList.add('opacity-0', 'scale-95');
+            setTimeout(() => resultCard.classList.add('hidden'), 300);
+
+            const selectedResult = {};
+            const duration = 2000; // spin time ms
+            const startTime = performance.now();
+
+            // Prepare animation strips
+            wardrobe.forEach((cat) => {
+                if (lockedCategories[cat.id] && cat.selectedItem) {
+                    selectedResult[cat.id] = cat.selectedItem;
+                    return;
+                }
+
+                // Random target item
+                const randomIndex = Math.floor(Math.random() * cat.items.length);
+                const chosenItem = cat.items[randomIndex];
+                cat.selectedItem = chosenItem;
+                selectedResult[cat.id] = chosenItem;
+
+                // Animate strip visually
+                const strip = document.getElementById(`reel-strip-${cat.id}`);
+                if (strip) {
+                    strip.classList.add('blur-motion');
+                }
+            });
+
+            // Fast shuffle interval for sound & visuals
+            const spinInterval = setInterval(() => {
+                playReelTickSound();
+                wardrobe.forEach((cat) => {
+                    if (!lockedCategories[cat.id]) {
+                        const randomTemp = cat.items[Math.floor(Math.random() * cat.items.length)];
+                        populateReelStrip(cat.id, randomTemp);
+                    }
+                });
+            }, 80);
+
+            // Finish Spin
+            setTimeout(() => {
+                clearInterval(spinInterval);
+
+                wardrobe.forEach((cat) => {
+                    const strip = document.getElementById(`reel-strip-${cat.id}`);
+                    if (strip) {
+                        strip.classList.remove('blur-motion');
+                    }
+                    populateReelStrip(cat.id, selectedResult[cat.id]);
+                });
+
+                isSpinning = false;
+                spinBtn.disabled = false;
+                spinBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+
+                // Trigger Win Fanfare & Confetti
+                playWinFanfare();
+                triggerConfetti();
+
+                // Show Result Card
+                displayResultCard(selectedResult);
+            }, duration);
+        }
+
+        function triggerConfetti() {
+            if (typeof confetti === 'function') {
+                confetti({
+                    particleCount: 70,
+                    spread: 60,
+                    origin: { y: 0.7 },
+                    colors: ['#FF6B8B', '#8A2BE2', '#FFD166', '#06D6A0']
+                });
+            }
+        }
+
+        function displayResultCard(results) {
+            const resultCard = document.getElementById('resultCard');
+            const itemsGrid = document.getElementById('resultItemsGrid');
+            const palettePreview = document.getElementById('palettePreview');
+            const titleElem = document.getElementById('outfitStyleTitle');
+
+            itemsGrid.innerHTML = '';
+            palettePreview.innerHTML = '';
+
+            // Generate Fun Style Title
+            const styles = ['Casual Chic', 'Streetwear Edge', 'Minimalist Vibe', 'Preppy Aesthetic', 'Cozy Retro', 'Elevated Urban'];
+            titleElem.textContent = styles[Math.floor(Math.random() * styles.length)];
+
+            document.getElementById('currentDateText').textContent = new Date().toLocaleDateString('en-US', {
+                weekday: 'short', month: 'short', day: 'numeric'
+            });
+
+            wardrobe.forEach((cat) => {
+                const item = results[cat.id];
+                if (!item) return;
+
+                if (cat.id === 'palette') {
+                    palettePreview.innerHTML = `
+                        <div class="flex items-center gap-2">
+                            <span class="w-6 h-6 rounded-full border border-white/20 shadow" style="background-color: ${item.color || '#fff'}"></span>
+                            <span class="w-6 h-6 rounded-full border border-white/20 shadow" style="background-color: ${item.secondary || '#888'}"></span>
+                            <span class="text-xs font-bold text-gray-200 ml-1">${item.name}</span>
+                        </div>
+                    `;
+                } else {
+                    const itemElem = document.createElement('div');
+                    itemElem.className = 'bg-white/5 border border-white/10 rounded-2xl p-3 flex items-center space-x-3';
+                    itemElem.innerHTML = `
+                        <span class="text-2xl">${item.icon}</span>
+                        <div class="overflow-hidden">
+                            <span class="text-[10px] text-gray-400 block uppercase font-bold tracking-wider">${cat.name}</span>
+                            <span class="text-xs font-bold text-white block truncate">${item.name}</span>
+                        </div>
+                    `;
+                    itemsGrid.appendChild(itemElem);
+                }
+            });
+
+            resultCard.classList.remove('hidden');
+            setTimeout(() => {
+                resultCard.classList.remove('opacity-0', 'scale-95');
+            }, 50);
+
+            // Smooth scroll to results on mobile
+            resultCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function copyOutfitSummary() {
+            playClickSound();
+            let summaryText = `✨ My OOTD Lucky Draw Outfit ✨\n`;
+            wardrobe.forEach(cat => {
+                if (cat.selectedItem) {
+                    summaryText += `• ${cat.name}: ${cat.selectedItem.icon} ${cat.selectedItem.name}\n`;
+                }
+            });
+            summaryText += `\nGenerated with OOTD Lucky Draw 🎲`;
+
+            // Clipboard copy
+            const textarea = document.createElement('textarea');
+            textarea.value = summaryText;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+
+            // Show Toast
+            const toast = document.getElementById('toast');
+            toast.classList.remove('opacity-0');
+            setTimeout(() => toast.classList.add('opacity-0'), 2000);
+        }
+
+        function openWardrobeModal() {
+            playClickSound();
+            const modal = document.getElementById('wardrobeModal');
+            renderModalTabs();
+            renderModalItems();
+            modal.classList.remove('hidden');
+            setTimeout(() => modal.classList.remove('opacity-0'), 10);
+        }
+
+        function closeWardrobeModal() {
+            playClickSound();
+            const modal = document.getElementById('wardrobeModal');
+            modal.classList.add('opacity-0');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                renderReels();
+            }, 300);
+        }
+
+        function renderModalTabs() {
+            const tabsContainer = document.getElementById('categoryTabs');
+            tabsContainer.innerHTML = '';
+
+            wardrobe.forEach(cat => {
+                const tab = document.createElement('button');
+                const isActive = cat.id === activeTabId;
+                tab.className = `px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center gap-2 ${
+                    isActive ? 'bg-brand-pink text-white shadow-lg' : 'bg-white/5 hover:bg-white/10 text-gray-400'
+                }`;
+                tab.innerHTML = `<i class="fas ${cat.icon}"></i> ${cat.name}`;
+                tab.onclick = () => {
+                    playClickSound();
+                    activeTabId = cat.id;
+                    renderModalTabs();
+                    renderModalItems();
+                };
+                tabsContainer.appendChild(tab);
+            });
+        }
+
+        function renderModalItems() {
+            const itemList = document.getElementById('itemList');
+            itemList.innerHTML = '';
+
+            const currentCategory = wardrobe.find(c => c.id === activeTabId);
+            if (!currentCategory) return;
+
+            currentCategory.items.forEach((item, index) => {
+                const itemCard = document.createElement('div');
+                itemCard.className = 'bg-black/30 border border-white/10 rounded-xl p-3 flex justify-between items-center';
+                itemCard.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">${item.icon}</span>
+                        <span class="text-sm font-semibold text-gray-200">${item.name}</span>
+                    </div>
+                    <button onclick="deleteCustomItem('${activeTabId}', ${index})" class="text-gray-500 hover:text-red-400 p-1 transition" title="Delete Item">
+                        <i class="fas fa-trash-alt text-xs"></i>
+                    </button>
+                `;
+                itemList.appendChild(itemCard);
+            });
+        }
+
+        function addNewCustomItem() {
+            const nameInput = document.getElementById('newItemName');
+            const emojiInput = document.getElementById('newItemEmoji');
+
+            const name = nameInput.value.trim();
+            const emoji = emojiInput.value.trim() || '✨';
+
+            if (!name) return;
+
+            playClickSound();
+            const cat = wardrobe.find(c => c.id === activeTabId);
+            if (cat) {
+                cat.items.push({ name, icon: emoji, tag: 'Custom' });
+                saveWardrobe();
+                renderModalItems();
+                nameInput.value = '';
+                emojiInput.value = '';
+            }
+        }
+
+        function deleteCustomItem(catId, index) {
+            playClickSound();
+            const cat = wardrobe.find(c => c.id === catId);
+            if (cat && cat.items.length > 1) {
+                cat.items.splice(index, 1);
+                saveWardrobe();
+                renderModalItems();
+            }
+        }
+
+        function resetDefaultWardrobe() {
+            if (confirm("Reset closet back to initial default items?")) {
+                playClickSound();
+                wardrobe = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
+                saveWardrobe();
+                renderModalTabs();
+                renderModalItems();
+            }
+        }
+
+        function saveWardrobe() {
+            localStorage.setItem('ootd_wardrobe', JSON.stringify(wardrobe));
+        }
+
+        // Initialize application on load
+        window.onload = function() {
+            renderReels();
+        };
+    </script>
+</body>
+</html>
